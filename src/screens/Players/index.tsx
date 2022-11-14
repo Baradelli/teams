@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useRoute } from '@react-navigation/native'
+import { useRoute, useNavigation } from '@react-navigation/native'
 import { FlatList, Alert, TextInput } from 'react-native'
 
 import { AppError } from '@utils/AppError'
@@ -8,6 +8,7 @@ import { playerAddByGroups } from '@storage/player/playerAddByGroup'
 import { playersGetByGroupAndTeam } from '@storage/player/playersGetByGroupAndTeam'
 import { PlayerStorageDTO } from '@storage/player/PlayerStorageDTO'
 import { playerRemoveByGroup } from '@storage/player/playerRemoveByGroup'
+import { groupRemoveByName } from '@storage/group/groupRemoveByName'
 
 import { ButtonIcon } from '@components/ButtonIcon'
 import { Header } from '@components/Header'
@@ -17,6 +18,7 @@ import { Filter } from '@components/Filter'
 import { PlayerCard } from '@components/PlayerCard'
 import { ListEmpty } from '@components/ListEmpty'
 import { Button } from '@components/Button'
+import { Loading } from '@components/Loading'
 
 import { Container, Form, HeaderList, NumberOfPlayers } from './styles'
 
@@ -25,10 +27,12 @@ interface RouteParams {
 }
 
 export const Players = () => {
+  const [isLoading, setIsLoading] = useState<boolean>(true)
   const [newPlayerName, setNewPlayerName] = useState<string>('')
   const [team, setTeam] = useState<string>('Time A')
   const [players, setPlayers] = useState<PlayerStorageDTO[]>([])
 
+  const navigation = useNavigation()
   const route = useRoute()
   const { group } = route.params as RouteParams
 
@@ -36,6 +40,7 @@ export const Players = () => {
 
   const fetchPlayersByTeam = async () => {
     try {
+      setIsLoading(true)
       const playersByTeam = await playersGetByGroupAndTeam(group, team)
 
       setPlayers(playersByTeam)
@@ -45,6 +50,8 @@ export const Players = () => {
         'Pessoas',
         'Não foi ossível carregar as pessoas do time selecionado',
       )
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -89,6 +96,24 @@ export const Players = () => {
     }
   }
 
+  const groupRemove = async () => {
+    try {
+      await groupRemoveByName(group)
+
+      navigation.navigate('groups')
+    } catch (error) {
+      console.error(error)
+      Alert.alert('Remover turma', 'Não foi possivel remover a turma.')
+    }
+  }
+
+  const handleGroupRemove = async () => {
+    Alert.alert('Remover', 'Deseja remove a turma ?', [
+      { text: 'Não', style: 'cancel' },
+      { text: 'Sim', onPress: () => groupRemove() },
+    ])
+  }
+
   useEffect(() => {
     fetchPlayersByTeam()
   }, [team])
@@ -130,26 +155,34 @@ export const Players = () => {
         <NumberOfPlayers>{players.length}</NumberOfPlayers>
       </HeaderList>
 
-      <FlatList
-        data={players}
-        keyExtractor={(item) => item.name}
-        renderItem={({ item }) => (
-          <PlayerCard
-            onRemove={() => handlePlayerRemove(item.name)}
-            name={item.name}
-          />
-        )}
-        ListEmptyComponent={() => (
-          <ListEmpty message="Não há pessoas nesse time" />
-        )}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          { paddingBottom: 100 },
-          players.length === 0 && { flex: 1 },
-        ]}
-      />
+      {isLoading ? (
+        <Loading />
+      ) : (
+        <FlatList
+          data={players}
+          keyExtractor={(item) => item.name}
+          renderItem={({ item }) => (
+            <PlayerCard
+              onRemove={() => handlePlayerRemove(item.name)}
+              name={item.name}
+            />
+          )}
+          ListEmptyComponent={() => (
+            <ListEmpty message="Não há pessoas nesse time" />
+          )}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            { paddingBottom: 100 },
+            players.length === 0 && { flex: 1 },
+          ]}
+        />
+      )}
 
-      <Button title="Remover turma" type="SECONDARY" />
+      <Button
+        title="Remover turma"
+        type="SECONDARY"
+        onPress={handleGroupRemove}
+      />
     </Container>
   )
 }
